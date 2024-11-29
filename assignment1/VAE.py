@@ -11,8 +11,8 @@ import numpy as np
 parser = argparse.ArgumentParser(description='VAE MNIST Example')
 parser.add_argument('--batch-size', type=int, default=128, metavar='N',
                     help='input batch size for training (default: 128)')
-parser.add_argument('--epochs', type=int, default=10, metavar='N',
-                    help='number of epochs to train (default: 10)')
+parser.add_argument('--epochs', type=int, default=100, metavar='N',
+                    help='number of epochs to train (default: 20)')
 parser.add_argument('--no-cuda', action='store_true', default=False,
                     help='disables CUDA training')
 parser.add_argument('--no-mps', action='store_true', default=False,
@@ -57,9 +57,9 @@ class VAE(nn.Module):
         super(VAE, self).__init__()
 
         self.fc1 = nn.Linear(784, 400)
-        self.fc21 = nn.Linear(400, 1)
-        self.fc22 = nn.Linear(400, 1)
-        self.fc3 = nn.Linear(1, 400)
+        self.fc21 = nn.Linear(400, 2)
+        self.fc22 = nn.Linear(400, 2)
+        self.fc3 = nn.Linear(2, 400)
         self.fc4 = nn.Linear(400, 784)
 
     def encode(self, x):
@@ -131,46 +131,18 @@ def test(epoch):
                 n = min(data.size(0), 8)
                 comparison = torch.cat([data[:n],
                                       recon_batch.view(args.batch_size, 1, 28, 28)[:n]])
-                save_image(comparison.cpu(),
-                         'assign2/results/reconstruction_' + str(epoch) + '.png', nrow=n)
+                if epoch % 5 == 0:
+                    save_image(comparison.cpu(),
+                            'assignment1/results/reconstruction_' + str(epoch) + '.png', nrow=n)
 
     test_loss /= len(test_loader.dataset)
     print('====> Test set loss: {:.4f}'.format(test_loss))
 
 
-# def task_A(epoch):
-#     import matplotlib.pyplot as plt
-#     """* Train a VAE model on the MNIST dataset with a 2 dimensional latent space. Plot the encoded samples in the latent space and color-code the different digit classes"""
-#     model.eval()  # Ensure the model is in evaluation mode
-
-#     latdim1, latdim2, labels = [], [], []
-#     with torch.no_grad():
-#         for i, (data, label) in enumerate(test_loader):
-#             data = data.to(device)
-#             label = label.to(device)
-            
-#             # Assuming model.encode outputs a single latent vector
-#             latent_dim = model.encode(data.view(-1, 784))
-#             latdim1.append(latent_dim[:, 0].cpu())  # First latent dimension
-#             latdim2.append(latent_dim[:, 1].cpu())  # Second latent dimension
-#             labels.append(label.cpu())
-    
-#     # Convert lists of tensors into flattened NumPy arrays
-#     latdim1 = torch.cat(latdim1).numpy()
-#     latdim2 = torch.cat(latdim2).numpy()
-#     labels = torch.cat(labels).numpy()
-
-#     # Plot the latent space
-#     fig, ax = plt.subplots(1, 1, figsize=(7, 7))
-#     scatter = ax.scatter(latdim1, latdim2, c=labels, cmap='tab10', alpha=0.7)
-#     legend1 = ax.legend(*scatter.legend_elements(), title="Digits")
-#     ax.add_artist(legend1)
-#     ax.set_title("Latent Space Representation")
-#     ax.set_xlabel("Latent Dimension 1")
-#     ax.set_ylabel("Latent Dimension 2")
-#     plt.show()
-
 def task_A(epoch):
+    if epoch % 5 != 0:
+        return
+
     import matplotlib.pyplot as plt
     """* Train a VAE model on the MNIST dataset with a 2-dimensional latent space. 
     Plot the encoded samples in the latent space and color-code the different digit classes."""
@@ -184,9 +156,10 @@ def task_A(epoch):
             label = label.to(device)
 
             # Obtain the mean (mu) from the encoder for latent space representation
-            mu, _ = model.encode(data.view(-1, 784))
-            latdim1.append(mu[:, 0].cpu())  # First latent dimension
-            latdim2.append(mu[:, 1].cpu())  # Second latent dimension
+            mu, logvar = model.encode(data.view(-1, 784))
+            latdim = model.reparameterize(mu, logvar).cpu()
+            latdim1.append(latdim[:, 0])
+            latdim2.append(latdim[:, 1])
             labels.append(label.cpu())
     
     # Convert lists of tensors into flattened NumPy arrays
@@ -200,11 +173,57 @@ def task_A(epoch):
     legend1 = ax.legend(*scatter.legend_elements(), title="Digits")
     ax.add_artist(legend1)
     ax.set_title(f"Latent Space Representation at Epoch {epoch}")
-    ax.set_xlabel("Latent Dimension 1")
-    ax.set_ylabel("Latent Dimension 2")
-    plt.savefig(f'assign2/results/latent_space_epoch_{epoch}.png')
-    plt.show()
+    ax.set_xlabel('$z_1$')
+    ax.set_ylabel('$z_2$')
+    plt.savefig(f'assignment1/results/task_a_latent_space_epoch_{epoch}.png')
+    #plt.show()
 
+
+
+def task_B(epoch):
+    if epoch % 5 != 0:
+        return
+
+    import matplotlib.pyplot as plt
+    from torch.distributions import Normal
+
+    model.eval()
+
+    # Parameters for the latent space grid
+    k = 20  # Number of points per dimension
+    z_min, z_max = -3, 3  # Range of the latent space
+
+    # Create a 2D grid of latent points
+    z1 = torch.linspace(z_min, z_max, k)
+    z2 = torch.linspace(z_min, z_max, k)
+    z1_grid, z2_grid = torch.meshgrid(z1, z2)
+    z_grid = torch.stack([z1_grid.flatten(), z2_grid.flatten()], dim=-1)  # Shape: (k*k, 2)
+
+    # Transform the grid points using the Gaussian inverse CDF
+    normal_dist = Normal(0, 1)
+    z_gaussian = normal_dist.icdf(torch.linspace(0.01, 0.99, k))
+    z1_gaussian, z2_gaussian = torch.meshgrid(z_gaussian, z_gaussian)
+    z_gaussian_grid = torch.stack([z1_gaussian.flatten(), z2_gaussian.flatten()], dim=-1)  # Shape: (k*k, 2)
+
+    # Pass the latent points through the decoder
+    with torch.no_grad():
+        decoded_images = model.decode(z_gaussian_grid.to(device)).cpu()  # Shape: (k*k, 784)
+
+    # Reshape decoded images to match grid
+    decoded_images = decoded_images.view(k, k, 28, 28)  # Reshape to (k, k, 28, 28)
+
+    # Plot the decoded images for each latent point
+    fig, axs = plt.subplots(k, k, figsize=(15, 15))
+    for i in range(k):
+        for j in range(k):
+            axs[i, j].imshow(decoded_images[i, j].numpy(), cmap='gray')  # Reshape each image to 28x28
+            axs[i, j].axis('off')
+
+    fig.text(0.5, 0.04, '$z_1$', ha='center', fontsize=14)  # x-axis label
+    fig.text(0.04, 0.5, '$z_2$', va='center', rotation='vertical', fontsize=14)  # y-axis label
+
+    plt.tight_layout(rect=[0.05, 0.05, 1, 1])  # Adjust layout to make space for labels
+    plt.savefig(f'assignment1/results/task_b_latent_space_epoch_{epoch}.png')
 
 
 
@@ -215,8 +234,9 @@ if __name__ == "__main__":
         train(epoch)
         test(epoch)
         task_A(epoch)
+        task_B(epoch)
         with torch.no_grad():
-            sample = torch.randn(64, 1).to(device)
+            sample = torch.randn(64, 2).to(device)
             sample = model.decode(sample).cpu()
             save_image(sample.view(64, 1, 28, 28),
-                       'assign2/results/sample_' + str(epoch) + '.png')
+                       'assignment1/results/sample_' + str(epoch) + '.png')

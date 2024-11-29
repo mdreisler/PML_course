@@ -1,1 +1,7 @@
-/data
+assignment1/data/
+.DS_Store
+#remove pycache
+__pycache__/
+assignment1/results/
+
+
