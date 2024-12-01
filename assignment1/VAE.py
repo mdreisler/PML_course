@@ -45,7 +45,7 @@ kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
 #     datasets.MNIST('../data', train=False, transform=transforms.ToTensor()),
 #     batch_size=args.batch_size, shuffle=False, **kwargs)
 
-from train import get_train_loader, get_test_loader
+from dataloaders import get_train_loader, get_test_loader
 
 train_loader = get_train_loader(args.batch_size)
 
@@ -119,7 +119,7 @@ def train(epoch):
           epoch, train_loss / len(train_loader.dataset)))
 
 
-def test(epoch):
+def test(epoch, save_reconstructions=False):
     model.eval()
     test_loss = 0
     with torch.no_grad():
@@ -131,7 +131,8 @@ def test(epoch):
                 n = min(data.size(0), 8)
                 comparison = torch.cat([data[:n],
                                       recon_batch.view(args.batch_size, 1, 28, 28)[:n]])
-                if epoch % 5 == 0:
+
+                if epoch % 5 == 0 and save_reconstructions:
                     save_image(comparison.cpu(),
                             'assignment1/results/reconstruction_' + str(epoch) + '.png', nrow=n)
 
@@ -235,8 +236,11 @@ if __name__ == "__main__":
         test(epoch)
         task_A(epoch)
         task_B(epoch)
-        with torch.no_grad():
-            sample = torch.randn(64, 2).to(device)
-            sample = model.decode(sample).cpu()
-            save_image(sample.view(64, 1, 28, 28),
-                       'assignment1/results/sample_' + str(epoch) + '.png')
+
+
+
+        # with torch.no_grad():
+        #     sample = torch.randn(64, 2).to(device)
+        #     sample = model.decode(sample).cpu()
+        #     save_image(sample.view(64, 1, 28, 28),
+        #                'assignment1/results/sample_' + str(epoch) + '.png')
