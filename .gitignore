@@ -1,9 +1,12 @@
 assignment1/data/
+assignment1/weekII/data
 *.DS_Store
 #remove pycache
 __pycache__/
 assignment1/results/
 #remove all DS_Store
 **/.DS_Store
+reading/
+
 
 
